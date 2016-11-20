@@ -1,4 +1,4 @@
-# aerial.utils
+# aerial.bio.utils
 
 Various bioinformatic general utility tools for unified file reading, sequence xform, HTSeq scoring and filtering, sequence entropy information processing , et.al.
 
