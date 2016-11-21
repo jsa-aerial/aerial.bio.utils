@@ -376,6 +376,31 @@
  read-seqs
  entry-parts)
 
+(defn read-fqrec
+  "Read a fastq 'record' from a file. IN is an input file
+  descriptor (an already opened input-stream reader). Returns a
+  quad [id sq aux qc] defining the next fastq record from IN."
+  [in]
+  [(.readLine in)
+   (.readLine in)
+   (.readLine in)
+   (.readLine in)])
+
+(defn read-fqrecs
+  "Read n fastq 'records' from a file. IN is an input file
+  descriptor (an already opened input-stream reader), and N is the
+  number of records (4 line chunks) to read. Returns a vector of
+  vector quads [id sq aux qc], each quad representing the id line,
+  sequence line, auxilliary line and quality control line (phread
+  scores)."
+  [in n]
+  (loop [recs []
+         n n]
+    (if (= n 0)
+      recs
+      (recur (conj recs (read-fqrec in))
+             (dec n)))))
+
 (defn write-fqrec-to-file
   "Write a fastq 'record' to a file.  OT is an output file
   descriptor (an already opened output-stream writer).  REC is a
