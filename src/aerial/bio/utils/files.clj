@@ -398,8 +398,11 @@
          n n]
     (if (= n 0)
       recs
-      (recur (conj recs (read-fqrec in))
-             (dec n)))))
+      (let [rec (read-fqrec in)]
+        (if (nil? (rec 0))
+          recs
+          (recur (conj recs rec)
+                 (dec n)))))))
 
 (defn write-fqrec-to-file
   "Write a fastq 'record' to a file.  OT is an output file
@@ -619,7 +622,7 @@
               attrs (if ptn (format nil "~A; protein_id ~A" attrs ptn) attrs)
               attrs (if pid (format nil "~A; p_id ~A" attrs pid) attrs)
               strand (if (= st "1") "+" "-")]
-          (println (format nil "~A\t~A\t~A\t~A\t~A\t.\t~A\t.\t~A"
+          (println (format nil "~A\t~A\t~A\t~A\t~A\t.\t~A\t0\t~A"
                            acc src feat s e strand attrs)))))))
 
 
