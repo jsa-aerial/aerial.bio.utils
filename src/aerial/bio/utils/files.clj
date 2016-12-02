@@ -381,7 +381,7 @@
   "Read a fastq 'record' from a file. IN is an input file
   descriptor (an already opened input-stream reader). Returns a
   quad [id sq aux qc] defining the next fastq record from IN."
-  [in]
+  [^java.io.BufferedReader in]
   [(.readLine in)
    (.readLine in)
    (.readLine in)
@@ -411,7 +411,7 @@
   vector quad [id sq aux qc], representing the id line, the sequence
   line, the auxilliary information line and the quality control line
   for a fastq format file."
-  [ot rec]
+  [^java.io.BufferedWriter ot rec]
   (let [[id sq aux qc] rec]
     (.write ot (str id "\n"))
     (.write ot (str sq "\n"))

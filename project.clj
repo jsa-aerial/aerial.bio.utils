@@ -1,4 +1,4 @@
-(defproject aerial.bio.utils "1.1.1"
+(defproject aerial.bio.utils "1.1.2"
   :description "Various bioinformatic general utility tools"
   :url "https://github.com/jsa-aerial/aerial.bio.utils"
   :license {:name "The MIT License (MIT)"
