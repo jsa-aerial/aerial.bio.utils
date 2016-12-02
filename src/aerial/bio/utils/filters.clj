@@ -44,14 +44,24 @@
 
 
 (def phred-scores
+  "Sangor format Phred score encoding/decoding map. Sangor format
+  encodes Phred scores from 0-93 as ASCII using offset 33 (ASCII
+  character codes 33-126). NOTE, as of end Feb 2011 all Illumina
+  sequencing produces fastqs with this format. "
   (let [pchs "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"]
     (into {} (mapv #(vector %1 %2) pchs (range (count pchs))))))
 
+(defn prob-correct->phred-score
+  "Convert a probability p of a base being _correct_ to corresponding
+  Phred score. Note that the std mapping (definition of phred score)
+  is a mapping from the probability -p of a base being _in_correct."
+  [p]
+  (- (* 10 (m/log10 (- 1.0 p)))))
+
 (comment
-  [(phred-scores \.) (- (* 10 (m/log10 (- 1.0 0.95))))]
-  ;;[13 13.01029995663981]
-  [(phred-scores \.) (- (* 10 (m/log10 (- 1.0 0.96))))])
-;;[13 13.979400086720371]
+  [(phred-scores \.) (prob-correct->phred-score 0.95)]
+  [(phred-scores \.) (prob-correct->phred-score 0.96)])
+
 
 
 ;;; turn on box warnings
@@ -60,6 +70,8 @@
 
 
 (defn qcscore-min-entropy
+  "Compute minimum entropy for a distribution of kmers of size winsize
+  over an msg with 'infinite' non repeated alphabet."
   [^double base%, ^double info%, ^long winsize]
   (let [x (Math/round (* winsize info%))
         infoseq (concat (range (- winsize x)) (range x))]
