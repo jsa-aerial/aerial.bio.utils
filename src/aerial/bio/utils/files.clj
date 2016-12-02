@@ -31,7 +31,8 @@
   "Various bio sequence file format readers, writers, verifiers, and
    manipulators."
 
-  (:require [clojure.string :as cstr]
+  (:require [clojure.java.io :as cjio]
+            [clojure.string :as cstr]
             [clojure.set :as set]
             [clojure.pprint :refer [cl-format]]
             [clojure.data.csv :as csv]
@@ -452,14 +453,24 @@
   and the quality score line. In the 3 arg case, sampfq is a filespec
   for an output fastq file where the sampling is written."
   ([p f]
-   (letio [lines (io/read-lines f)
-           samps (->> lines
-                      (partition-all 4)
-                      (random-sample p) flatten)]
-     (doall samps)))
+   (letio [rdr (io/open-file f :in)]
+     (loop [rec (read-fqrec rdr)
+            samps []]
+       (if (not (first rec))
+         samps
+         (if (< (rand) p)
+           (recur (read-fqrec rdr) (conj samps rec))
+           (recur (read-fqrec rdr) samps))))))
   ([p f sampfq]
-   (io/with-out-writer sampfq
-     (doseq [l (sample-fq p f)] (println l)))))
+   (letio [rdr (io/open-file f :in)
+           wtr (io/open-file sampfq :out)]
+     (loop [rec (read-fqrec rdr)]
+       (if (not (first rec))
+         sampfq
+         (if (< (rand) p)
+           (do (write-fqrec-to-file wtr rec)
+               (recur (read-fqrec rdr)))
+           (recur (read-fqrec rdr))))))))
 
 
 (defn fastq->fna

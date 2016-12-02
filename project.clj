@@ -1,4 +1,4 @@
-(defproject aerial.bio.utils "1.1.0"
+(defproject aerial.bio.utils "1.1.1"
   :description "Various bioinformatic general utility tools"
   :url "https://github.com/jsa-aerial/aerial.bio.utils"
   :license {:name "The MIT License (MIT)"
@@ -10,7 +10,7 @@
    [org.clojure/tools.reader "1.0.0-beta3"]
 
    [aerial.fs "1.1.5"]
-   [aerial.utils "1.1.0"]
+   [aerial.utils "1.2.0"]
 
    ;; The following pulls in dnsjava, but it is required in utils so,
    ;; this should be pulled in by utils and dnsjava from that. But it
