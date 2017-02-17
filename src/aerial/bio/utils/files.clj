@@ -405,7 +405,7 @@
           (recur (conj recs rec)
                  (dec n)))))))
 
-(defn write-fqrec-to-file
+(defn write-fqrec
   "Write a fastq 'record' to a file.  OT is an output file
   descriptor (an already opened output-stream writer).  REC is a
   vector quad [id sq aux qc], representing the id line, the sequence
@@ -418,7 +418,7 @@
     (.write ot (str aux "\n"))
     (.write ot (str qc "\n"))))
 
-(defn write-fqrecs-to-file
+(defn write-fqrecs
   "Write fastq 'records' to file. OT is an output file descriptor (an
   already opened output-stream writer). RECS is a vector/sequence of
   quads [id sq aux qc], each representing the id line, the sequence
@@ -426,8 +426,97 @@
   for a fastq format file."
   [ot recs]
   (doseq [rec recs]
-    (write-fqrec-to-file ot rec)))
+    (write-fqrec ot rec)))
 
+
+(defn read-farec
+  "Read a fasta 'record' from a file. IN is an input file
+  descriptor (an already opened input-stream reader). Returns a
+  pair [id sq] defining the next fasta record from IN."
+  [^java.io.BufferedReader in]
+  [(.readLine in)
+   (.readLine in)])
+
+(defn read-farecs
+  "Read n fasta 'records' from a file. IN is an input file
+  descriptor (an already opened input-stream reader), and N is the
+  number of records (2 line chunks) to read. Returns a vector of
+  vector pairs [id sq], each pair representing the id line and
+  sequence line."
+  [in n]
+  (loop [recs []
+         n n]
+    (if (= n 0)
+      recs
+      (let [rec (read-fqrec in)]
+        (if (nil? (rec 0))
+          recs
+          (recur (conj recs rec)
+                 (dec n)))))))
+(defn write-farec
+  "Write a fasta 'record' to a file.  OT is an output file
+  descriptor (an already opened output-stream writer).  REC is a
+  vector quad [id sq], representing the id line and the sequence line"
+  [^java.io.BufferedWriter ot rec]
+  (let [[id sq] rec]
+    (.write ot (str id "\n"))
+    (.write ot (str sq "\n"))))
+
+(defn write-farecs
+  "Write fasta 'records' to file. OT is an output file descriptor (an
+  already opened output-stream writer). RECS is a vector/sequence of
+  quads [id sq], each representing the id line and the sequence line"
+  [ot recs]
+  (doseq [rec recs]
+    (write-farec ot rec)))
+
+
+(defn collapse-one
+  "Collapse the sequences in fqa, a fastq or fasta file and write the
+  collapsed value as a fasta record to fasta, a file spec for fasta
+  output."
+  [fqa fasta]
+  (letio [inf (io/open-file fqa :in)
+          otf (io/open-file fasta :out)
+          cnt (loop [fqrec (read-fqrec inf)
+                     M {}]
+                (if (nil? (fqrec 0))
+                  (reduce (fn[C [sq cnt]]
+                            (let [id (str ">" C "-" cnt)]
+                              (write-farec otf [id sq])
+                              (inc C)))
+                          1 M)
+                  (let [sq (fqrec 1)]
+                    (recur (read-fqrec inf)
+                           (assoc M sq (inc (get M sq 0)))))))]
+      [fasta cnt]))
+
+(defn collapse-group
+  [pairs]
+  (doseq [p pairs]
+    (collapse-one (first p) (second p))))
+
+
+(defn- sample-fxx
+  ([p f read-fn write-fn]
+   (letio [rdr (io/open-file f :in)]
+     (loop [rec (read-fn rdr)
+            samps []]
+       (if (not (first rec))
+         samps
+         (if (< (rand) p)
+           (recur (read-fn rdr) (conj samps rec))
+           (recur (read-fn rdr) samps))))))
+  ([p f read-fn write-fn samp-file]
+   (letio [rdr (io/open-file f :in)
+           wtr (io/open-file samp-file :out)]
+     (loop [rec (read-fn rdr)]
+       (if (not (first rec))
+         samp-file
+         (if (< (rand) p)
+           (do (write-fn wtr rec)
+               (recur (read-fn rdr)))
+           (recur (read-fn rdr))))))))
 
 (defn sample-fna
   "Sample the sequences in f, a fasta file, with probability
@@ -436,14 +525,9 @@
   case, sampfna is a filespec for an output fasta file where the
   sampling is written."
   ([p f]
-   (letio [lines (io/read-lines f)
-           samps (->> lines
-                      (partition-all 2)
-                      (random-sample p) flatten)]
-     (doall samps)))
-  ([p f sampfna]
-   (io/with-out-writer sampfna
-     (doseq [l (sample-fna p f)] (println l)))))
+   (sample-fxx p f read-farec write-farec))
+  ([p f sampfa]
+   (sample-fxx p f read-farec write-farec sampfa)))
 
 (defn sample-fq
   "Sample the sequences in f, a fastq file, with probability
@@ -453,24 +537,9 @@
   and the quality score line. In the 3 arg case, sampfq is a filespec
   for an output fastq file where the sampling is written."
   ([p f]
-   (letio [rdr (io/open-file f :in)]
-     (loop [rec (read-fqrec rdr)
-            samps []]
-       (if (not (first rec))
-         samps
-         (if (< (rand) p)
-           (recur (read-fqrec rdr) (conj samps rec))
-           (recur (read-fqrec rdr) samps))))))
+   (sample-fxx p f read-fqrec write-fqrec))
   ([p f sampfq]
-   (letio [rdr (io/open-file f :in)
-           wtr (io/open-file sampfq :out)]
-     (loop [rec (read-fqrec rdr)]
-       (if (not (first rec))
-         sampfq
-         (if (< (rand) p)
-           (do (write-fqrec-to-file wtr rec)
-               (recur (read-fqrec rdr)))
-           (recur (read-fqrec rdr))))))))
+   (sample-fxx p f read-fqrec write-fqrec sampfq)))
 
 
 (defn fastq->fna
@@ -479,14 +548,13 @@
   corresponding fasta has only the id and sq lines per 'record'. Both
   FQ and FAOT are file specs."
   [fq faot]
-  (letio [lines (io/read-lines fq)
-          faot (clojure.java.io/writer faot)]
-    (loop [lines lines]
-      (when (seq lines)
-        (let [[id sq] (coll/takev 4 lines)]
-          (.write faot (str id "\n"))
-          (.write faot (str sq "\n"))
-          (recur (drop 4 lines)))))))
+  (letio [rdr (io/open-file fq :in)
+          wtr (io/open-file faot :out)]
+    (loop [rec (read-fqrec rdr)]
+      (if (not (rec 0))
+        faot
+        (do (write-farec wtr [(str ">" (rec 0)) (rec 1)])
+            (recur (read-fqrec rdr)))))))
 
 (defn fastqs->fnas
   "Convert the fastqs in FQS (a seq) to corresponding fasta files. The
