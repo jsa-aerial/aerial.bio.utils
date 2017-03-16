@@ -7,7 +7,7 @@ Various bioinformatic general utility tools for unified file reading, sequence x
 
 To install, add the following to your project `:dependencies`:
 
-    [aerial.bio.utils "1.1.2"]
+    [aerial.bio.utils "2.0.0"]
 
 ## Documentation
 
@@ -16,7 +16,7 @@ To install, add the following to your project `:dependencies`:
 
 ## License
 
-Copyright © 2016
+Copyright © 2016,2017
 
 Distributed under the The MIT License [(MIT)][]
 
