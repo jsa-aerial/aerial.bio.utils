@@ -52,7 +52,7 @@
   (:import aerial.utils.io.auioReader))
 
 ;;; Tell letio how to work with read-seqs and using auioReader
-(io/add-rdrwtr 'aerial.bio.utils.files/read-seqs true)
+(aerial.utils.io/add-rdrwtr 'aerial.bio.utils.files/read-seqs true)
 
 
 ;;; ------------------------------------------------------------------------;;;
@@ -719,36 +719,44 @@
   "Extract a GTF (gene transfer format) file from the record
   information (features and their attributes) given in the genbank
   format file gbfile. The GTF file also includes the p_id attribute on
-  CDS records, as required by the cuff* suite of software. For gene_id
-  and transcript_id, uses the first from the ordered list:
-  old_locus_tag, locus_tag, gene, protein_id. "
-  [gbfile gtfout]
-  (let [format clojure.pprint/cl-format
-        recs (genbank-recs gbfile :feats ["gene" "CDS"])
-        acc (->> recs first second)
-        src "aerial"
-        loci-map (reduce
-                  (fn[M [k v m]]
-                    (assoc M v (sort-by first (conj (get M v []) [k m]))))
-                  {} (rest recs))
-        gtfrecs (->> loci-map (sort-by (fn[[[s e st] x]] (Integer. s)))
-                     (map (fn[[k v]] [k (first v)]))
-                     (map (fn[[[s e st] v]] [(first v) s e st (second v)])))
-        p_id (volatile! 0)]
-    (io/with-out-writer gtfout
-      (doseq [[feat s e st m] gtfrecs]
-        (let [id (or (m "old_locus_tag") (m "locus_tag")
-                     (m "gene") (m "protein_id"))
-              pid (if (= feat "CDS") (str "\"P" (vswap! p_id #(inc %)) \") nil)
-              gene (m "gene")
-              ptn (m "protein_id")
-              attrs (format nil "gene_id ~A; transcript_id ~A" id id)
-              ;;attrs (if gene (format nil "~A; gene ~A" attrs gene) attrs)
-              attrs (if ptn (format nil "~A; protein_id ~A" attrs ptn) attrs)
-              attrs (if pid (format nil "~A; p_id ~A" attrs pid) attrs)
-              strand (if (= st "1") "+" "-")]
-          (println (format nil "~A\t~A\t~A\t~A\t~A\t.\t~A\t0\t~A"
-                           acc src feat s e strand attrs)))))))
+  CDS records, as required by the cuff* suite of software.
+
+  options is a map of options to use. Currently only supports
+  key :id-order. If given the value should be a vector of
+  \"locus_tag\", \"old_locus_tag\", \"gene\", and \"protein_id\", the
+  order given will determine which of these is used for gene_id and
+  transcript_id. The default value is [\"locus_tag\",
+  \"old_locus_tag\", \"gene\", and \"protein_id\"]"
+  ([gbfile gtfout] (genbk2gtf gbfile gtfout {}))
+  ([gbfile gtfout options]
+   (let [format clojure.pprint/cl-format
+         {:keys [id-order]
+          :or {id-order ["locus_tag" "old_locus_tag" "gene" "protein_id"]
+               }} options
+         recs (genbank-recs gbfile :feats ["gene" "CDS"])
+         acc (->> recs first second)
+         src "aerial"
+         loci-map (reduce
+                   (fn[M [k v m]]
+                     (assoc M v (sort-by first (conj (get M v []) [k m]))))
+                   {} (rest recs))
+         gtfrecs (->> loci-map (sort-by (fn[[[s e st] x]] (Integer. s)))
+                      (map (fn[[k v]] [k (first v)]))
+                      (map (fn[[[s e st] v]] [(first v) s e st (second v)])))
+         p_id (volatile! 0)]
+     (io/with-out-writer gtfout
+       (doseq [[feat s e st m] gtfrecs]
+         (let [id (->> id-order (map #(m %)) (coll/dropv-until identity) first)
+               pid (if (= feat "CDS") (str "\"P" (vswap! p_id #(inc %)) \") nil)
+               gene (m "gene")
+               ptn (m "protein_id")
+               attrs (format nil "gene_id ~A; transcript_id ~A" id id)
+               ;;attrs (if gene (format nil "~A; gene ~A" attrs gene) attrs)
+               attrs (if ptn (format nil "~A; protein_id ~A" attrs ptn) attrs)
+               attrs (if pid (format nil "~A; p_id ~A" attrs pid) attrs)
+               strand (if (= st "1") "+" "-")]
+           (println (format nil "~A\t~A\t~A\t~A\t~A\t.\t~A\t0\t~A"
+                            acc src feat s e strand attrs))))))))
 
 
 (defn sto->fna
