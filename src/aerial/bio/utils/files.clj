@@ -448,7 +448,7 @@
          n n]
     (if (= n 0)
       recs
-      (let [rec (read-fqrec in)]
+      (let [rec (read-farec in)]
         (if (nil? (rec 0))
           recs
           (recur (conj recs rec)
@@ -652,25 +652,33 @@
 
 
 (defn gbank-loci-sane-loci
-  "GBFF loci are often, if not incoherent certainly vague and not very
+  "GBFF loci are often, if not incoherent, certainly vague and not very
   useful. This function takes such and turns them into nice clean loci
   with simple start, end and strand. BUG: this will lose some
   information in certain cases, but should not with CDS and genes. "
   [gbloci]
-  (let [[s e] (->> gbloci (str/replace-re #"(<|>)" "")
-                   (re-find #"[0-9]+\.\.[0-9]+") (str/split #"\.+"))
-        std (if (re-find #"complement" gbloci) "-1" "1")]
-    [s e std]))
+  (let [std (if (re-find #"complement" gbloci) "-1" "1")]
+    (->> gbloci (str/replace-re #"(<|>)" "")
+         (re-seq #"[0-9]+\.\.[0-9]+")
+         (mapv #(conj (str/split #"\.+" %) std)))))
+
+(defn get-full-comma-sep-stg [stg rdr]
+  (loop [l (.readLine rdr)
+         stg stg]
+    (let [newstg (->> l clojure.string/trim (str stg))]
+      (if (not= (str/get l (-> l count dec)) \,)
+        newstg
+        (recur (.readLine rdr) newstg)))))
 
 (defn genbank-recs
-  "Takes a genbank file, gbfile - a string file specification, and a
-  set of features (feats) and associated attributes (attrs),so called
+  "Takes a genbank file, gbfile - a string file specification, and a set
+  of features (feats) and associated attributes (attrs), so called
   qualifiers and values, and returns a vector where the first element
   describes the LOCUS of the gbfile and each subsequent element is a
-  triple [feature loci attr-map], where feature (a string) is a one of
-  feats, looci is a vector [start end strand], (all strings, strand =
-  1|-1), and attr-map is a map with keys in attrs and values, the
-  associated values from the genbank record."
+  triple [feature loci attr-map], where feature (a string) is one of
+  feats, loci is a vector [start end strand], (all strings, strand =
+  1|-1), and attr-map is a map with keys in attrs and their associated
+  values from the genbank record."
   [gbfile & {:keys [feats attrs]
              :or {feats ["gene", "CDS", "misc_feature",
                          "rRNA", "tRNA", "tmRNA", "ncRNA"]
@@ -695,6 +703,9 @@
 
         (feature? l)
         (let [[feat loci] (->> l trim (str/split #"\s+"))
+              loci (if (= (str/get loci (-> loci count dec)) \,)
+                     (get-full-comma-sep-stg loci rdr)
+                     loci)
               loci (gbank-loci-sane-loci loci)
               [rec l]
               (loop [l (.readLine rdr)
@@ -719,29 +730,51 @@
   "Extract a GTF (gene transfer format) file from the record
   information (features and their attributes) given in the genbank
   format file gbfile. The GTF file also includes the p_id attribute on
-  CDS records, as required by the cuff* suite of software.
+  CDS records, as required by the cuff* suite of software (this is no
+  longer all that meaningful as the cuff* suite of tools is basically
+  deprecated as 'not good enough').
 
-  options is a map of options to use. Currently only supports
-  key :id-order. If given the value should be a vector of
+  options is a map of options to use. Currently supports
+  keys :id-order and :feats.
+
+  If :id-order is given, the value should be a vector of
   \"locus_tag\", \"old_locus_tag\", \"gene\", and \"protein_id\", the
   order given will determine which of these is used for gene_id and
   transcript_id. The default value is [\"locus_tag\",
-  \"old_locus_tag\", \"gene\", and \"protein_id\"]"
+  \"old_locus_tag\", \"gene\", and \"protein_id\"]
+
+  If :feats is given, the value should be a vector of feature type
+  names taken from this list:
+
+  \"gene\", \"CDS\", \"misc_feature\", \"rRNA\", \"tRNA\", \"tmRNA\", \"ncRNA\"
+
+  This will determine what features to include and, importantly, the
+  order will determine the feature type to encode them as. Features in
+  genbank files are often encoded under multiple types, for example,
+  rRNAs are also listed as genes. If you gave :feats [\"CDS\" \"rRNA\"
+  \"gene\"] the rRNA records will have a feature type of rRNA instead
+  of gene as rRNA occurs before gene in the list.
+  "
   ([gbfile gtfout] (genbk2gtf gbfile gtfout {}))
   ([gbfile gtfout options]
    (let [format clojure.pprint/cl-format
-         {:keys [id-order]
+         {:keys [id-order feats]
           :or {id-order ["locus_tag" "old_locus_tag" "gene" "protein_id"]
-               }} options
-         recs (genbank-recs gbfile :feats ["gene" "CDS"])
+               feats ["CDS" "rRNA" "gene"]}} options
+         recs (genbank-recs gbfile :feats feats)
          acc (->> recs first second)
          src "aerial"
          loci-map (reduce
-                   (fn[M [k v m]]
-                     (assoc M v (sort-by first (conj (get M v []) [k m]))))
+                   (fn[M [k V m]]
+                     (reduce (fn [M v]
+                               (assoc M v (assoc (get M v {}) k m)))
+                             M V))
                    {} (rest recs))
          gtfrecs (->> loci-map (sort-by (fn[[[s e st] x]] (Integer. s)))
-                      (map (fn[[k v]] [k (first v)]))
+                      (map (fn[[k v]]
+                             [k (reduce (fn[x f]
+                                          (if (v f) (reduced [f (v f)]) x))
+                                        :na feats)]))
                       (map (fn[[[s e st] v]] [(first v) s e st (second v)])))
          p_id (volatile! 0)]
      (io/with-out-writer gtfout
