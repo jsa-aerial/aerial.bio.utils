@@ -531,7 +531,7 @@
 
 (defn monte-carlo-subseq-cnts
   [& {:keys [type size sseq sample-size seed] :or
-      {:type :dna :size 1024 :sseq "" :sample-size 10000 :seed nil}}]
+      {type :dna, size 1024, sseq "", sample-size 10000, seed nil}}]
   {:pre [(> size 0)
          (let [abet (alphabet type)]
            (every? #(in (str %1) abet) (str/upper-case sseq)))]}
@@ -557,7 +557,7 @@
 
 (defn pmonte-carlo-subseq-cnts
   [& {:keys [type size sseq sample-size seed par] :or
-      {:type :dna :size 1024 :sseq "" :sample-size 10000 :seed nil :par 10}}]
+      {type :dna, size 1024, sseq "", sample-size 10000, seed nil, par 10}}]
   {:pre [(> size 0)
          (and (integer? par) (<= 1 par 12))
          (let [abet (alphabet type)]
@@ -575,7 +575,7 @@
 
 (defn monte-carlo-subseq-freq
   [& {:keys [type size sseq sample-size seed par] :or
-      {:type :dna :size 1024 :sseq "" :sample-size 10000 :seed nil :par 10}}]
+      {type :dna, size 1024, sseq "", sample-size 10000, seed nil, par 10}}]
   (let [f (if (and par (integer? par) (> par 1))
             pmonte-carlo-subseq-cnts
             monte-carlo-subseq-cnts)
