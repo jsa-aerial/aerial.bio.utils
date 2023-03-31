@@ -1,13 +1,10 @@
+[![Clojars Project](https://img.shields.io/clojars/v/aerial.bio.utils.svg)](https://clojars.org/aerial.bio.utils)
+
 # aerial.bio.utils
 
 Various bioinformatic general utility tools for unified file reading, sequence xform, HTSeq scoring and filtering, sequence entropy information processing , et.al.
 
 
-## Installation
-
-To install, add the following to your project `:dependencies`:
-
-    [aerial.bio.utils "2.0.0"]
 
 ## Documentation
 
