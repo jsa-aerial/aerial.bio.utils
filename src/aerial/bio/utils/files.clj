@@ -541,6 +541,48 @@
   ([p f sampfq]
    (sample-fxx p f read-fqrec write-fqrec sampfq)))
 
+(defn rxy
+  "Obtain the `lane-cell-x-y' coordinates of an Illumina fastq read.
+  These are obtained from the header information defined for both
+  bcl2fastq and bcl-convert output. `hdrl' is the header line of an
+  Illumina output fastq read record."
+  [hdrl]
+  (let [rv (str/split hdrl #":")
+        [lane cell x] (->> rv (drop 3) (take 3))
+        y (-> 6 rv (str/split #" ") first)]
+    (str lane "-" cell "-" x "-" y)))
+
+(defn sampR2fq
+  "Sample the reads in the read 2 (R2) fastq file `R2-infq' that is the
+  pair of the original read 1 (R1) fastq file that produced the
+  sampling in the `R1sampfq' fastq file. The reads in R2-infq
+  corresponding to those in R1sampfq are written to `R2-otfq'."
+  [R1sampfq R2-infq R2-otfq]
+  (letio [R1in (io/open-file R1sampfq :in)
+          R2in (io/open-file R2-infq :in)
+          R2ot (io/open-file R2-otfq :out)]
+    (loop [R1rec (bufiles/read-fqrec R1in)
+           cnt 0]
+      (if (nil? (R1rec 0))
+        cnt
+        (let [R1xy (rxy (R1rec 0))]
+          (loop [R2rec (bufiles/read-fqrec R2in)]
+            (if (= R1xy (rxy (R2rec 0)))
+              (bufiles/write-fqrec R2ot R2rec)
+              (recur (bufiles/read-fqrec R2in))))
+          (recur (bufiles/read-fqrec R1in)
+                 (inc cnt)))))))
+
+(defn sample-paired-fqs
+  "Sample the **paired** reads in R1fq and R2fq with probability
+  `p'. The pairing of the reads is maintained, and the output
+  files (for R1fq and R2fq) are written to output directory `otdir'."
+  [p [R1fq R2fq] otdir]
+  (let [R1otfq (->> R1fq fs/basename (fs/join (fs/fullpath otdir)))
+        R2otfq (->> R2fq fs/basename (fs/join (fs/fullpath otdir)))]
+    (bufiles/sample-fq p R1fq R1otfq)
+    (sampR2fq R1otfq R2fq R2otfq)))
+
 
 (defn fastq->fna
   "Convert a fastq format file to a fasta file. Fastq files have 4
