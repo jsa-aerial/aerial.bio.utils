@@ -561,16 +561,16 @@
   (letio [R1in (io/open-file R1sampfq :in)
           R2in (io/open-file R2-infq :in)
           R2ot (io/open-file R2-otfq :out)]
-    (loop [R1rec (bufiles/read-fqrec R1in)
+    (loop [R1rec (read-fqrec R1in)
            cnt 0]
       (if (nil? (R1rec 0))
         cnt
         (let [R1xy (rxy (R1rec 0))]
-          (loop [R2rec (bufiles/read-fqrec R2in)]
+          (loop [R2rec (read-fqrec R2in)]
             (if (= R1xy (rxy (R2rec 0)))
-              (bufiles/write-fqrec R2ot R2rec)
-              (recur (bufiles/read-fqrec R2in))))
-          (recur (bufiles/read-fqrec R1in)
+              (write-fqrec R2ot R2rec)
+              (recur (read-fqrec R2in))))
+          (recur (read-fqrec R1in)
                  (inc cnt)))))))
 
 (defn sample-paired-fqs
@@ -580,7 +580,7 @@
   [p [R1fq R2fq] otdir]
   (let [R1otfq (->> R1fq fs/basename (fs/join (fs/fullpath otdir)))
         R2otfq (->> R2fq fs/basename (fs/join (fs/fullpath otdir)))]
-    (bufiles/sample-fq p R1fq R1otfq)
+    (sample-fq p R1fq R1otfq)
     (sampR2fq R1otfq R2fq R2otfq)))
 
 
